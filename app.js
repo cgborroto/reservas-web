@@ -1199,13 +1199,10 @@ function isReadOnlyMode() {
 }
 
 function syncSimpleModeUi() {
-  if (!isReadOnlyMode()) {
-    adminCard.classList.remove("hidden");
-    modalActions.classList.remove("hidden");
-    return;
-  }
-
   adminCard.classList.add("hidden");
-  modalActions.classList.add("hidden");
-  modalEditForm.classList.add("hidden");
+
+  if (isReadOnlyMode()) {
+    modalActions.classList.add("hidden");
+    modalEditForm.classList.add("hidden");
+  }
 }
