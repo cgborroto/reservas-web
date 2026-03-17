@@ -1,0 +1,31 @@
+ Bloque 1:
+
+  const googleSheetsConfig = {
+    enabled: true,
+    spreadsheetId: "AQUI_VA_EL_ID_DE_TU_GOOGLE_SHEET",
+    appsScriptUrl: "AQUI_VA_LA_URL_DEL_WEB_APP_DE_APPS_SCRIPT",
+    mode: "privateAppsScript",
+  };
+
+  Bloque 2:
+
+  const securityConfig = {
+    enabled: true,
+    googleClientId: "AQUI_VA_TU_GOOGLE_CLIENT_ID",
+    allowedEmails: ["cgborroto@gmail.com", "odasabina@gmail.com"],
+    sheets: {
+      properties: "propiedades",
+      reservations: "reservas",
+      cleaning: "limpieza",
+    },
+  };
+
+  Y en /home/cgborroto/reservas-web/google-apps-script/Code.gs, deja esto:
+
+  var ALLOWED_EMAILS = [
+    "cgborroto@gmail.com",
+    "odasabina@gmail.com"
+  ];
+
+  var GOOGLE_CLIENT_ID = "890425856815-hhcq7r8geu8aluue9om96m6d25cmjs0j.apps.googleusercontent.com
+";

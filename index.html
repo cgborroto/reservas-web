@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Control de Reservas</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+  </head>
+  <body>
+    <div id="auth-gate" class="auth-gate hidden">
+      <div class="auth-card">
+        <p class="eyebrow">Acceso privado</p>
+        <h2>Entrar con Google</h2>
+        <p class="intro">
+          Esta agenda puede quedar limitada a tu correo y al de tu esposa.
+        </p>
+        <div id="google-signin-button"></div>
+        <p id="auth-status" class="form-status"></p>
+      </div>
+    </div>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <p class="eyebrow">Panel de reservas</p>
+        <h1>Calendario de propiedades</h1>
+        <p class="intro">
+          Vista mensual por propiedad, con colores por canal, días libres y limpieza.
+        </p>
+
+        <nav id="property-tabs" class="property-tabs" aria-label="Propiedades"></nav>
+
+        <section class="legend">
+          <h2>Leyenda</h2>
+          <ul id="legend-list"></ul>
+        </section>
+      </aside>
+
+      <main class="content">
+        <header class="calendar-header">
+          <div>
+            <p class="eyebrow" id="property-subtitle">Propiedad</p>
+            <h2 id="property-title">Casa</h2>
+            <p class="data-source" id="data-source">Cargando datos...</p>
+          </div>
+
+          <div class="month-controls">
+            <button id="prev-month" type="button" aria-label="Mes anterior">Anterior</button>
+            <div class="month-label" id="month-label"></div>
+            <button id="next-month" type="button" aria-label="Mes siguiente">Siguiente</button>
+          </div>
+        </header>
+
+        <section class="admin-card">
+          <div class="admin-grid">
+            <form id="reservation-form" class="admin-form">
+              <h3>Registrar reserva</h3>
+              <label>
+                Propiedad
+                <select id="reservation-property" name="propertyId" required></select>
+              </label>
+              <label>
+                Nombre del huésped
+                <input type="text" name="guest" placeholder="Ej. Laura Pérez" required />
+              </label>
+              <label>
+                Tipo de huésped / canal
+                <select name="channel" required>
+                  <option value="Airbnb">Airbnb</option>
+                  <option value="Booking">Booking</option>
+                  <option value="Vrbo">Vrbo</option>
+                  <option value="Directo">Directo</option>
+                </select>
+              </label>
+              <label>
+                Fecha de entrada
+                <input type="date" name="start" required />
+              </label>
+              <label>
+                Fecha de salida
+                <input type="date" name="end" required />
+              </label>
+              <label>
+                Ingreso
+                <input type="number" name="income" min="0" step="0.01" placeholder="Ej. 3500" required />
+              </label>
+              <button type="submit">Guardar reserva</button>
+            </form>
+
+            <form id="cleaning-form" class="admin-form">
+              <h3>Registrar limpieza</h3>
+              <label>
+                Propiedad
+                <select id="cleaning-property" name="propertyId" required></select>
+              </label>
+              <label>
+                Fecha de limpieza
+                <input type="date" name="date" required />
+              </label>
+              <button type="submit">Guardar limpieza</button>
+            </form>
+          </div>
+          <p id="form-status" class="form-status"></p>
+        </section>
+
+        <section class="calendar-card">
+          <div class="weekdays" id="weekdays"></div>
+          <div class="calendar-grid" id="calendar-grid"></div>
+        </section>
+
+        <section class="reservations-panel">
+          <h3>Reservas del mes</h3>
+          <div id="monthly-reservations" class="reservation-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <div id="reservation-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal="true"></div>
+      <section
+        class="modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
+        <button id="close-modal" class="modal-close" type="button" aria-label="Cerrar">
+          ×
+        </button>
+        <p class="eyebrow">Detalle de reserva</p>
+        <h3 id="modal-title">Reserva</h3>
+        <div id="modal-content" class="modal-content"></div>
+        <div class="modal-actions">
+          <button id="edit-reservation" class="secondary-button" type="button">Editar</button>
+          <button id="delete-reservation" class="danger-button" type="button">Borrar</button>
+        </div>
+        <form id="modal-edit-form" class="modal-edit-form hidden">
+          <label>
+            Nombre
+            <input id="modal-guest" name="guest" type="text" required />
+          </label>
+          <label>
+            Tipo de huesped
+            <select id="modal-channel" name="channel" required>
+              <option value="Airbnb">Airbnb</option>
+              <option value="Booking">Booking</option>
+              <option value="Vrbo">Vrbo</option>
+              <option value="Directo">Directo</option>
+            </select>
+          </label>
+          <label>
+            Fecha de entrada
+            <input id="modal-start" name="start" type="date" required />
+          </label>
+          <label>
+            Fecha de salida
+            <input id="modal-end" name="end" type="date" required />
+          </label>
+          <label>
+            Ingreso
+            <input id="modal-income" name="income" type="number" min="0" step="0.01" required />
+          </label>
+          <div class="modal-actions">
+            <button class="secondary-button" id="cancel-edit" type="button">Cancelar</button>
+            <button type="submit">Guardar cambios</button>
+          </div>
+        </form>
+        <p id="modal-status" class="form-status"></p>
+      </section>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
