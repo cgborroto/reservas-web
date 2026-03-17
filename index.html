@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Control de Reservas</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260317-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -12,7 +12,7 @@
         <p class="eyebrow">Panel de reservas</p>
         <h1>Calendario de propiedades</h1>
         <p class="intro">
-          Vista mensual por propiedad, con colores por canal, días libres y limpieza.
+          Vista mensual por propiedad, con reservas, bloqueos y días libres.
         </p>
 
         <nav id="property-tabs" class="property-tabs" aria-label="Propiedades"></nav>
@@ -41,22 +41,23 @@
         <section id="admin-card" class="admin-card">
           <div class="admin-grid">
             <form id="reservation-form" class="admin-form">
-              <h3>Registrar reserva</h3>
+              <h3>Registrar reserva o bloqueo</h3>
               <label>
                 Propiedad
                 <select id="reservation-property" name="propertyId" required></select>
               </label>
               <label>
-                Nombre del huésped
-                <input type="text" name="guest" placeholder="Ej. Laura Pérez" required />
+                Nombre / detalle
+                <input type="text" name="guest" placeholder="Ej. Laura Pérez o Reparación baño" required />
               </label>
               <label>
-                Tipo de huésped / canal
+                Tipo / canal
                 <select name="channel" required>
                   <option value="Airbnb">Airbnb</option>
                   <option value="Booking">Booking</option>
                   <option value="Vrbo">Vrbo</option>
                   <option value="Directo">Directo</option>
+                  <option value="Limpieza">Limpieza</option>
                 </select>
               </label>
               <label>
@@ -69,22 +70,9 @@
               </label>
               <label>
                 Ingreso
-                <input type="number" name="income" min="0" step="0.01" placeholder="Ej. 3500" required />
+                <input type="number" name="income" min="0" step="0.01" placeholder="Ej. 3500 o 0 si es bloqueo" required />
               </label>
-              <button type="submit">Guardar reserva</button>
-            </form>
-
-            <form id="cleaning-form" class="admin-form">
-              <h3>Registrar limpieza</h3>
-              <label>
-                Propiedad
-                <select id="cleaning-property" name="propertyId" required></select>
-              </label>
-              <label>
-                Fecha de limpieza
-                <input type="date" name="date" required />
-              </label>
-              <button type="submit">Guardar limpieza</button>
+              <button type="submit">Guardar</button>
             </form>
           </div>
           <p id="form-status" class="form-status"></p>
@@ -113,7 +101,7 @@
         <button id="close-modal" class="modal-close" type="button" aria-label="Cerrar">
           ×
         </button>
-        <p class="eyebrow">Detalle de reserva</p>
+        <p class="eyebrow">Detalle</p>
         <h3 id="modal-title">Reserva</h3>
         <div id="modal-content" class="modal-content"></div>
         <div id="modal-actions" class="modal-actions">
@@ -126,12 +114,13 @@
             <input id="modal-guest" name="guest" type="text" required />
           </label>
           <label>
-            Tipo de huesped
+            Tipo / canal
             <select id="modal-channel" name="channel" required>
               <option value="Airbnb">Airbnb</option>
               <option value="Booking">Booking</option>
               <option value="Vrbo">Vrbo</option>
               <option value="Directo">Directo</option>
+              <option value="Limpieza">Limpieza</option>
             </select>
           </label>
           <label>
@@ -154,6 +143,6 @@
         <p id="modal-status" class="form-status"></p>
       </section>
     </div>
-    <script src="./app.js"></script>
+    <script src="./app.js?v=20260317-1"></script>
   </body>
 </html>
