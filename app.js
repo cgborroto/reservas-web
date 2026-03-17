@@ -71,7 +71,7 @@ const googleSheetsConfig = {
   enabled: true,
   spreadsheetId: "10wXR2SeMqURamitzJT2SDb01lELdg79Y_JRLJlWHGsA",
   publishedSpreadsheetId: "2PACX-1vR4fJLg7E2VtqQ3lG0GA-ZO0sWWBaN_nOymI4aaddApWiATiapKTbEJF-ypPBMHFljSRTN6V9MQNRNw",
-  writeAppsScriptUrl: "https://script.google.com/macros/s/AKfycbwI8iuMXM1UqYDsMQkTLjERN4IW_5ofpcimpxoNqPhkC1pJOP6h-JuRBRpfZkJT5wR64w/exec",
+  writeAppsScriptUrl: "https://reservas-write-backend.cgborroto-reservas.workers.dev",
   sheets: {
     properties: { name: "Propiedades", gid: "0" },
     reservations: { name: "Reservas", gid: "570953344" },
