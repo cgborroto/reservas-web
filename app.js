@@ -457,6 +457,7 @@ function normalizeChannel(channel) {
   const normalized = String(channel).trim().toLowerCase();
   if (normalized === "airbnb") return "Airbnb";
   if (normalized === "booking") return "Booking";
+  if (normalized === "bokking") return "Booking";
   if (normalized === "vrbo") return "Vrbo";
   if (normalized === "directo") return "Directo";
   return String(channel).trim();
@@ -487,14 +488,21 @@ function normalizeDate(value) {
     return text;
   }
 
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(text)) {
-    const [day, month, year] = text.split("/");
-    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-  }
+  if (/^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/.test(text)) {
+    const separator = text.includes("/") ? "/" : "-";
+    const [first, second, year] = text.split(separator).map((part) => Number(part));
 
-  if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(text)) {
-    const [day, month, year] = text.split("-");
-    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    // Google Sheets published CSV is currently exporting dates as month/day/year.
+    // If the first segment is > 12, we fall back to day/month/year to keep manual entries working.
+    let month = first;
+    let day = second;
+
+    if (first > 12 && second <= 12) {
+      day = first;
+      month = second;
+    }
+
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }
 
   const parsed = new Date(text);
