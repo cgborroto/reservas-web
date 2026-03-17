@@ -65,6 +65,7 @@ const state = {
   dataSourceLabel: "Datos de ejemplo",
   activeReservation: null,
   modalMode: "view",
+  backgroundRefreshTimer: null,
 };
 
 const googleSheetsConfig = {
@@ -409,9 +410,10 @@ async function fetchSheetRows(sheetName) {
   if (sheetConfig.gid) {
     params.set("gid", sheetConfig.gid);
   }
+  params.set("ts", String(Date.now()));
 
   const url = `https://docs.google.com/spreadsheets/d/e/${googleSheetsConfig.publishedSpreadsheetId}/pub?${params.toString()}`;
-  const response = await fetch(url);
+  const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Error cargando hoja ${sheetConfig.name || sheetConfig.gid || "sin nombre"}`);
   }
@@ -723,7 +725,7 @@ async function handleReservationSubmit(event) {
     event.currentTarget.reset();
     reservationProperty.value = state.selectedPropertyId;
     setFormStatus("Reserva guardada correctamente.");
-    await refreshData(reservation.propertyId);
+    updateUiAfterLocalMutation(reservation.propertyId);
   } catch (error) {
     console.error(error);
     setFormStatus("No se pudo guardar la reserva.");
@@ -731,23 +733,24 @@ async function handleReservationSubmit(event) {
 }
 
 async function saveReservation(reservation) {
-  if (isWriteBackendEnabled()) {
-    await postToWriteBackend({
-      action: "addReservation",
-      payload: buildWriteReservationPayload(reservation),
-    });
-    return;
-  }
-
-  const property = state.properties.find((item) => item.id === reservation.propertyId);
-  property.reservations.push({
+  const nextReservation = {
     id: reservation.id || createId("res"),
     start: reservation.start,
     end: reservation.end,
     channel: reservation.channel,
     guest: reservation.guest,
     income: reservation.income,
-  });
+  };
+
+  if (isWriteBackendEnabled()) {
+    await postToWriteBackend({
+      action: "addReservation",
+      payload: buildWriteReservationPayload({ ...reservation, id: nextReservation.id }),
+    });
+  }
+
+  const property = state.properties.find((item) => item.id === reservation.propertyId);
+  property.reservations.push(nextReservation);
 }
 
 function isWriteBackendEnabled() {
@@ -808,6 +811,28 @@ async function refreshData(preferredPropertyId) {
   state.selectedPropertyId = preferredPropertyId || state.selectedPropertyId;
   renderPropertyTabs();
   renderCalendar();
+}
+
+function updateUiAfterLocalMutation(preferredPropertyId) {
+  state.selectedPropertyId = preferredPropertyId || state.selectedPropertyId;
+  renderPropertyTabs();
+  renderCalendar();
+  scheduleBackgroundRefresh(preferredPropertyId);
+}
+
+function scheduleBackgroundRefresh(preferredPropertyId) {
+  if (!googleSheetsConfig.enabled) {
+    return;
+  }
+
+  window.clearTimeout(state.backgroundRefreshTimer);
+  state.backgroundRefreshTimer = window.setTimeout(async () => {
+    try {
+      await refreshData(preferredPropertyId);
+    } catch (error) {
+      console.error("No fue posible refrescar en segundo plano:", error);
+    }
+  }, 4000);
 }
 
 function setFormStatus(message) {
@@ -986,10 +1011,10 @@ async function handleReservationEditSubmit(event) {
   try {
     await updateReservation(updatedReservation);
     modalStatus.textContent = "Reserva actualizada.";
-    await refreshData(context.property.id);
+    updateUiAfterLocalMutation(context.property.id);
     const refreshed = getReservationById(context.property.id, updatedReservation.id);
     if (refreshed) {
-      openReservationModal(context.property, refreshed);
+      openReservationModal(getSelectedProperty(), refreshed);
     }
   } catch (error) {
     console.error(error);
@@ -1042,12 +1067,7 @@ async function handleCreateReservationFromModal(event) {
     modalStatus.textContent = isWriteBackendEnabled()
       ? "Reserva guardada correctamente."
       : "Reserva creada en esta sesion. No se sincroniza con Google Sheets.";
-    if (isWriteBackendEnabled()) {
-      await refreshData(reservation.propertyId);
-    } else {
-      renderPropertyTabs();
-      renderCalendar();
-    }
+    updateUiAfterLocalMutation(reservation.propertyId);
     closeReservationModal();
   } catch (error) {
     console.error(error);
@@ -1069,7 +1089,7 @@ async function handleReservationDelete() {
   try {
     await deleteReservation(context.property.id, context.reservation.id);
     closeReservationModal();
-    await refreshData(context.property.id);
+    updateUiAfterLocalMutation(context.property.id);
     modalStatus.textContent = "";
   } catch (error) {
     console.error(error);
@@ -1083,7 +1103,6 @@ async function updateReservation(reservation) {
       action: "updateReservation",
       payload: buildWriteReservationPayload(reservation),
     });
-    return;
   }
 
   const current = getReservationById(reservation.propertyId, reservation.id);
@@ -1100,7 +1119,6 @@ async function deleteReservation(propertyId, reservationId) {
       action: "deleteReservation",
       payload: { propertyId, id: reservationId },
     });
-    return;
   }
 
   const property = state.properties.find((item) => item.id === propertyId);
