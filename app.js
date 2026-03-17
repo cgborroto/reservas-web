@@ -391,7 +391,7 @@ function buildPropertiesFromSheets(propertyRows, reservationRows, cleaningRows) 
   });
 
   reservationRows.forEach((row) => {
-    const propertyId = normalizeId(row.property_id || row.propiedad_id || row.property || row.propiedad);
+    const propertyId = resolvePropertyId(row, propertyMap);
     if (!propertyId || !row.start || !row.end || !row.channel) {
       return;
     }
@@ -408,7 +408,7 @@ function buildPropertiesFromSheets(propertyRows, reservationRows, cleaningRows) 
   });
 
   cleaningRows.forEach((row) => {
-    const propertyId = normalizeId(row.property_id || row.propiedad_id || row.property || row.propiedad);
+    const propertyId = resolvePropertyId(row, propertyMap);
     const cleaningDate = normalizeDate(row.date || row.fecha);
     if (!propertyId || !cleaningDate) {
       return;
@@ -430,6 +430,20 @@ function ensureProperty(propertyMap, propertyId) {
       cleaningDays: [],
     });
   }
+}
+
+function resolvePropertyId(row, propertyMap) {
+  const explicitId = normalizeId(row.property_id || row.propiedad_id || row.property);
+  if (explicitId) {
+    return explicitId;
+  }
+
+  const visibleName = normalizeId(row.propiedad || row.name || "");
+  if (visibleName && propertyMap.has(visibleName)) {
+    return visibleName;
+  }
+
+  return visibleName;
 }
 
 function normalizeChannel(channel) {
@@ -469,6 +483,19 @@ function normalizeDate(value) {
   if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(text)) {
     const [day, month, year] = text.split("/");
     return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(text)) {
+    const [day, month, year] = text.split("-");
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }
 
   return text;
