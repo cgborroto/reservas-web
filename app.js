@@ -70,9 +70,9 @@ const googleSheetsConfig = {
   enabled: true,
   spreadsheetId: "10wXR2SeMqURamitzJT2SDb01lELdg79Y_JRLJlWHGsA",
   sheets: {
-    properties: "Propiedades",
-    reservations: "Reservas",
-    cleaning: "Limpieza",
+    properties: { name: "Propiedades", gid: "0" },
+    reservations: { name: "Reservas", gid: "570953344" },
+    cleaning: { name: "Limpieza", gid: "577762975" },
   },
 };
 
@@ -362,10 +362,18 @@ async function loadProperties() {
 }
 
 async function fetchSheetRows(sheetName) {
-  const url = `https://docs.google.com/spreadsheets/d/${googleSheetsConfig.spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+  const sheetConfig = typeof sheetName === "string" ? { name: sheetName, gid: "" } : sheetName;
+  const params = new URLSearchParams({ tqx: "out:csv" });
+  if (sheetConfig.gid) {
+    params.set("gid", sheetConfig.gid);
+  } else if (sheetConfig.name) {
+    params.set("sheet", sheetConfig.name);
+  }
+
+  const url = `https://docs.google.com/spreadsheets/d/${googleSheetsConfig.spreadsheetId}/gviz/tq?${params.toString()}`;
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Error cargando hoja ${sheetName}`);
+    throw new Error(`Error cargando hoja ${sheetConfig.name || sheetConfig.gid || "sin nombre"}`);
   }
 
   const csvText = await response.text();
