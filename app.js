@@ -70,9 +70,9 @@ const googleSheetsConfig = {
   enabled: true,
   spreadsheetId: "10wXR2SeMqURamitzJT2SDb01lELdg79Y_JRLJlWHGsA",
   sheets: {
-    properties: "propiedades",
-    reservations: "reservas",
-    cleaning: "limpieza",
+    properties: "Propiedades",
+    reservations: "Reservas",
+    cleaning: "Limpieza",
   },
 };
 
