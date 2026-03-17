@@ -71,6 +71,7 @@ const googleSheetsConfig = {
   enabled: true,
   spreadsheetId: "10wXR2SeMqURamitzJT2SDb01lELdg79Y_JRLJlWHGsA",
   publishedSpreadsheetId: "2PACX-1vR4fJLg7E2VtqQ3lG0GA-ZO0sWWBaN_nOymI4aaddApWiATiapKTbEJF-ypPBMHFljSRTN6V9MQNRNw",
+  writeAppsScriptUrl: "https://script.google.com/macros/s/AKfycbwI8iuMXM1UqYDsMQkTLjERN4IW_5ofpcimpxoNqPhkC1pJOP6h-JuRBRpfZkJT5wR64w/exec",
   sheets: {
     properties: { name: "Propiedades", gid: "0" },
     reservations: { name: "Reservas", gid: "570953344" },
@@ -692,6 +693,14 @@ async function handleCleaningSubmit(event) {
 }
 
 async function saveReservation(reservation) {
+  if (isWriteBackendEnabled()) {
+    await postToWriteBackend({
+      action: "addReservation",
+      payload: buildWriteReservationPayload(reservation),
+    });
+    return;
+  }
+
   const property = state.properties.find((item) => item.id === reservation.propertyId);
   property.reservations.push({
     id: reservation.id || createId("res"),
@@ -704,8 +713,74 @@ async function saveReservation(reservation) {
 }
 
 async function saveCleaning(cleaning) {
+  if (isWriteBackendEnabled()) {
+    await postToWriteBackend({
+      action: "addCleaning",
+      payload: buildWriteCleaningPayload(cleaning),
+    });
+    return;
+  }
+
   const property = state.properties.find((item) => item.id === cleaning.propertyId);
   property.cleaningDays.push(cleaning.date);
+}
+
+function isWriteBackendEnabled() {
+  return googleSheetsConfig.writeAppsScriptUrl && googleSheetsConfig.writeAppsScriptUrl.startsWith("https://");
+}
+
+function getPropertyName(propertyId) {
+  const property = state.properties.find((item) => item.id === propertyId);
+  return property ? property.name : propertyId;
+}
+
+function buildWriteReservationPayload(reservation) {
+  return {
+    id: reservation.id || createId("res"),
+    propertyId: reservation.propertyId,
+    propertyName: getPropertyName(reservation.propertyId),
+    start: reservation.start,
+    end: reservation.end,
+    channel: reservation.channel,
+    guest: reservation.guest,
+    income: reservation.income,
+  };
+}
+
+function buildWriteCleaningPayload(cleaning) {
+  return {
+    propertyId: cleaning.propertyId,
+    propertyName: getPropertyName(cleaning.propertyId),
+    date: cleaning.date,
+  };
+}
+
+async function postToWriteBackend(body) {
+  const response = await fetch(googleSheetsConfig.writeAppsScriptUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const rawText = await response.text();
+  if (!response.ok) {
+    throw new Error(`Apps Script devolvio HTTP ${response.status}.`);
+  }
+
+  let data;
+  try {
+    data = JSON.parse(rawText);
+  } catch (error) {
+    throw new Error("Apps Script respondio un formato invalido.");
+  }
+
+  if (!data.ok) {
+    throw new Error(data.error || "Error en Apps Script");
+  }
+
+  return data;
 }
 
 async function refreshData(preferredPropertyId) {
@@ -794,9 +869,9 @@ function openCreateReservationModal(property, dateKey) {
   document.getElementById("modal-income").value = "";
   modalActions.classList.add("hidden");
   modalEditForm.classList.remove("hidden");
-  modalStatus.textContent = isSimpleAccessMode()
-    ? "Esta reserva se guardara solo en esta sesion del navegador."
-    : "";
+  modalStatus.textContent = isWriteBackendEnabled()
+    ? ""
+    : "Esta reserva se guardara solo en esta sesion del navegador.";
   reservationModal.classList.remove("hidden");
   reservationModal.setAttribute("aria-hidden", "false");
 }
@@ -921,11 +996,15 @@ async function handleCreateReservationFromModal(event) {
 
   try {
     await saveReservation(reservation);
-    modalStatus.textContent = isSimpleAccessMode()
-      ? "Reserva creada en esta sesion. No se sincroniza con Google Sheets."
-      : "Reserva guardada correctamente.";
-    renderPropertyTabs();
-    renderCalendar();
+    modalStatus.textContent = isWriteBackendEnabled()
+      ? "Reserva guardada correctamente."
+      : "Reserva creada en esta sesion. No se sincroniza con Google Sheets.";
+    if (isWriteBackendEnabled()) {
+      await refreshData(reservation.propertyId);
+    } else {
+      renderPropertyTabs();
+      renderCalendar();
+    }
     closeReservationModal();
   } catch (error) {
     console.error(error);
@@ -956,6 +1035,14 @@ async function handleReservationDelete() {
 }
 
 async function updateReservation(reservation) {
+  if (isWriteBackendEnabled()) {
+    await postToWriteBackend({
+      action: "updateReservation",
+      payload: buildWriteReservationPayload(reservation),
+    });
+    return;
+  }
+
   const current = getReservationById(reservation.propertyId, reservation.id);
   if (!current) {
     throw new Error("Reserva no encontrada");
@@ -965,6 +1052,14 @@ async function updateReservation(reservation) {
 }
 
 async function deleteReservation(propertyId, reservationId) {
+  if (isWriteBackendEnabled()) {
+    await postToWriteBackend({
+      action: "deleteReservation",
+      payload: { propertyId, id: reservationId },
+    });
+    return;
+  }
+
   const property = state.properties.find((item) => item.id === propertyId);
   property.reservations = property.reservations.filter((item) => item.id !== reservationId);
 }
