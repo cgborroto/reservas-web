@@ -1173,6 +1173,7 @@ function formatCurrency(value) {
 }
 
 async function bootstrapData() {
+  closeReservationModal();
   const properties = await loadProperties();
   state.properties = properties;
   state.selectedPropertyId = properties[0] ? properties[0].id : "";
