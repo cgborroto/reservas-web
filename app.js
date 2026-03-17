@@ -862,6 +862,10 @@ function openReservationModal(property, reservation) {
 }
 
 function openCreateReservationModal(property, dateKey) {
+  if (dateKey < getTodayDateKey()) {
+    return;
+  }
+
   state.activeReservation = {
     propertyId: property.id,
     reservationId: "",
