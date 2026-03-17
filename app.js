@@ -106,6 +106,7 @@ const modalStatus = document.getElementById("modal-status");
 const modalEditForm = document.getElementById("modal-edit-form");
 const adminCard = document.getElementById("admin-card");
 const modalActions = document.getElementById("modal-actions");
+const refreshCalendarButton = document.getElementById("refresh-calendar");
 const reservationStartInput = reservationForm.elements.start;
 const reservationEndInput = reservationForm.elements.end;
 const modalStartInput = document.getElementById("modal-start");
@@ -113,6 +114,7 @@ const modalEndInput = document.getElementById("modal-end");
 
 document.getElementById("prev-month").addEventListener("click", () => changeMonth(-1));
 document.getElementById("next-month").addEventListener("click", () => changeMonth(1));
+refreshCalendarButton.addEventListener("click", handleManualRefresh);
 reservationForm.addEventListener("submit", handleReservationSubmit);
 modalEditForm.addEventListener("submit", handleReservationEditSubmit);
 document.getElementById("edit-reservation").addEventListener("click", beginReservationEdit);
@@ -819,12 +821,29 @@ function updateUiAfterLocalMutation(preferredPropertyId) {
 }
 
 function setFormStatus(message) {
-  if (!message && isSimpleAccessMode()) {
+  if (!message && isReadOnlyMode()) {
     formStatus.textContent = "Modo simple: el calendario se lee del Google Sheet publicado. Los cambios locales no se sincronizan.";
     return;
   }
 
   formStatus.textContent = message;
+}
+
+async function handleManualRefresh() {
+  refreshCalendarButton.disabled = true;
+  const previousLabel = refreshCalendarButton.textContent;
+  refreshCalendarButton.textContent = "Actualizando...";
+
+  try {
+    await refreshData(state.selectedPropertyId);
+    setFormStatus("Calendario actualizado.");
+  } catch (error) {
+    console.error(error);
+    setFormStatus("No se pudo actualizar el calendario.");
+  } finally {
+    refreshCalendarButton.disabled = false;
+    refreshCalendarButton.textContent = previousLabel;
+  }
 }
 
 function openReservationModal(property, reservation) {
@@ -858,7 +877,7 @@ function openReservationModal(property, reservation) {
   `;
   modalStatus.textContent = "";
   modalEditForm.classList.add("hidden");
-  if (isSimpleAccessMode()) {
+  if (isReadOnlyMode()) {
     modalActions.classList.add("hidden");
   } else {
     modalActions.classList.remove("hidden");
@@ -1167,8 +1186,12 @@ function isSimpleAccessMode() {
   return googleSheetsConfig.enabled;
 }
 
+function isReadOnlyMode() {
+  return googleSheetsConfig.enabled && !isWriteBackendEnabled();
+}
+
 function syncSimpleModeUi() {
-  if (!isSimpleAccessMode()) {
+  if (!isReadOnlyMode()) {
     adminCard.classList.remove("hidden");
     modalActions.classList.remove("hidden");
     return;

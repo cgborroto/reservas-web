@@ -156,6 +156,10 @@ h3 {
   border-radius: 999px;
 }
 
+#refresh-calendar {
+  font-weight: 700;
+}
+
 .month-label {
   min-width: 220px;
   text-align: center;
