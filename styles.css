@@ -143,29 +143,35 @@ h3 {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(217, 204, 183, 0.8);
 }
 
 .month-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .month-controls button {
-  border: 1px solid var(--border);
-  background: var(--panel-strong);
+  border: 0;
+  background: transparent;
   color: var(--text);
-  padding: 10px 14px;
+  padding: 8px 10px;
   border-radius: 999px;
 }
 
 #refresh-calendar {
+  border: 1px solid var(--border);
+  background: var(--panel-strong);
   font-weight: 700;
 }
 
 .month-label {
-  min-width: 220px;
+  min-width: 190px;
   text-align: center;
   font-weight: 700;
 }
