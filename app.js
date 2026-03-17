@@ -64,6 +64,7 @@ const state = {
   currentMonth: new Date(2026, 2, 1),
   dataSourceLabel: "Datos de ejemplo",
   activeReservation: null,
+  modalMode: "view",
 };
 
 const googleSheetsConfig = {
@@ -234,6 +235,18 @@ function buildDayCell(day, property) {
         openReservationModal(property, reservation);
       }
     });
+  } else {
+    cell.classList.add("clickable-day");
+    cell.setAttribute("role", "button");
+    cell.setAttribute("tabindex", "0");
+    cell.setAttribute("aria-label", `Crear reserva para ${property.name} el ${dateKey}`);
+    cell.addEventListener("click", () => openCreateReservationModal(property, dateKey));
+    cell.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openCreateReservationModal(property, dateKey);
+      }
+    });
   }
 
   cell.append(dayNumber, dayStatus);
@@ -318,6 +331,25 @@ function getSelectedProperty() {
 
 function isDateInRange(target, start, end) {
   return target >= start && target <= end;
+}
+
+function dateRangesOverlap(startA, endA, startB, endB) {
+  return startA <= endB && startB <= endA;
+}
+
+function findReservationConflict(propertyId, start, end, excludedReservationId = "") {
+  const property = state.properties.find((item) => item.id === propertyId);
+  if (!property) {
+    return null;
+  }
+
+  return property.reservations.find((reservation) => {
+    if (excludedReservationId && reservation.id === excludedReservationId) {
+      return false;
+    }
+
+    return dateRangesOverlap(start, end, reservation.start, reservation.end);
+  }) || null;
 }
 
 function toDateKey(date) {
@@ -617,6 +649,11 @@ async function handleReservationSubmit(event) {
     return;
   }
 
+  if (findReservationConflict(reservation.propertyId, reservation.start, reservation.end)) {
+    setFormStatus("No disponible: esa propiedad ya tiene una reserva en esas fechas.");
+    return;
+  }
+
   try {
     await saveReservation(reservation);
     event.currentTarget.reset();
@@ -695,6 +732,7 @@ function openReservationModal(property, reservation) {
     propertyId: property.id,
     reservationId: reservation.id,
   };
+  state.modalMode = "view";
   modalTitle.textContent = property.name;
   modalContent.innerHTML = `
     <div class="modal-row">
@@ -731,15 +769,52 @@ function openReservationModal(property, reservation) {
   reservationModal.setAttribute("aria-hidden", "false");
 }
 
+function openCreateReservationModal(property, dateKey) {
+  state.activeReservation = {
+    propertyId: property.id,
+    reservationId: "",
+    draftDate: dateKey,
+  };
+  state.modalMode = "create";
+  modalTitle.textContent = `${property.name} · Nueva reserva`;
+  modalContent.innerHTML = `
+    <div class="modal-row">
+      <span class="modal-label">Estado</span>
+      <strong>Disponible</strong>
+    </div>
+    <div class="modal-row">
+      <span class="modal-label">Fecha sugerida</span>
+      <span>${formatDate(dateKey)}</span>
+    </div>
+  `;
+  document.getElementById("modal-guest").value = "";
+  document.getElementById("modal-channel").value = "Airbnb";
+  document.getElementById("modal-start").value = dateKey;
+  document.getElementById("modal-end").value = dateKey;
+  document.getElementById("modal-income").value = "";
+  modalActions.classList.add("hidden");
+  modalEditForm.classList.remove("hidden");
+  modalStatus.textContent = isSimpleAccessMode()
+    ? "Esta reserva se guardara solo en esta sesion del navegador."
+    : "";
+  reservationModal.classList.remove("hidden");
+  reservationModal.setAttribute("aria-hidden", "false");
+}
+
 function closeReservationModal() {
   reservationModal.classList.add("hidden");
   reservationModal.setAttribute("aria-hidden", "true");
   state.activeReservation = null;
+  state.modalMode = "view";
   modalStatus.textContent = "";
   cancelReservationEdit();
 }
 
 function beginReservationEdit() {
+  if (state.modalMode === "create") {
+    return;
+  }
+
   const context = getActiveReservationContext();
   if (!context) {
     return;
@@ -755,11 +830,21 @@ function beginReservationEdit() {
 
 function cancelReservationEdit() {
   modalEditForm.reset();
+  if (state.modalMode === "create") {
+    closeReservationModal();
+    return;
+  }
+
   modalEditForm.classList.add("hidden");
 }
 
 async function handleReservationEditSubmit(event) {
   event.preventDefault();
+  if (state.modalMode === "create") {
+    await handleCreateReservationFromModal(event);
+    return;
+  }
+
   const context = getActiveReservationContext();
   if (!context) {
     return;
@@ -785,6 +870,11 @@ async function handleReservationEditSubmit(event) {
     return;
   }
 
+  if (findReservationConflict(updatedReservation.propertyId, updatedReservation.start, updatedReservation.end, updatedReservation.id)) {
+    modalStatus.textContent = "No disponible: esa propiedad ya tiene una reserva en esas fechas.";
+    return;
+  }
+
   try {
     await updateReservation(updatedReservation);
     modalStatus.textContent = "Reserva actualizada.";
@@ -796,6 +886,50 @@ async function handleReservationEditSubmit(event) {
   } catch (error) {
     console.error(error);
     modalStatus.textContent = "No se pudo actualizar la reserva.";
+  }
+}
+
+async function handleCreateReservationFromModal(event) {
+  const context = state.activeReservation;
+  if (!context || !context.propertyId) {
+    return;
+  }
+
+  const reservation = {
+    propertyId: context.propertyId,
+    guest: document.getElementById("modal-guest").value.trim(),
+    channel: document.getElementById("modal-channel").value,
+    start: document.getElementById("modal-start").value,
+    end: document.getElementById("modal-end").value,
+    income: normalizeMoney(document.getElementById("modal-income").value),
+  };
+
+  if (!reservation.guest || !reservation.start || !reservation.end || !reservation.income) {
+    modalStatus.textContent = "Completa todos los campos.";
+    return;
+  }
+
+  if (reservation.end < reservation.start) {
+    modalStatus.textContent = "La fecha de salida no puede ser menor que la entrada.";
+    return;
+  }
+
+  if (findReservationConflict(reservation.propertyId, reservation.start, reservation.end)) {
+    modalStatus.textContent = "No disponible: esa propiedad ya tiene una reserva en esas fechas.";
+    return;
+  }
+
+  try {
+    await saveReservation(reservation);
+    modalStatus.textContent = isSimpleAccessMode()
+      ? "Reserva creada en esta sesion. No se sincroniza con Google Sheets."
+      : "Reserva guardada correctamente.";
+    renderPropertyTabs();
+    renderCalendar();
+    closeReservationModal();
+  } catch (error) {
+    console.error(error);
+    modalStatus.textContent = "No se pudo guardar la reserva.";
   }
 }
 
