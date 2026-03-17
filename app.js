@@ -877,6 +877,7 @@ function openReservationModal(property, reservation) {
   `;
   modalStatus.textContent = "";
   modalEditForm.classList.add("hidden");
+  modalEditForm.hidden = true;
   if (isReadOnlyMode()) {
     modalActions.classList.add("hidden");
   } else {
@@ -885,6 +886,7 @@ function openReservationModal(property, reservation) {
     document.getElementById("delete-reservation").classList.remove("hidden");
   }
   reservationModal.classList.remove("hidden");
+  reservationModal.hidden = false;
   reservationModal.setAttribute("aria-hidden", "false");
 }
 
@@ -921,12 +923,15 @@ function openCreateReservationModal(property, dateKey) {
   modalStatus.textContent = isWriteBackendEnabled()
     ? ""
     : "Esta reserva se guardara solo en esta sesion del navegador.";
+  modalEditForm.hidden = false;
   reservationModal.classList.remove("hidden");
+  reservationModal.hidden = false;
   reservationModal.setAttribute("aria-hidden", "false");
 }
 
 function closeReservationModal() {
   reservationModal.classList.add("hidden");
+  reservationModal.hidden = true;
   reservationModal.setAttribute("aria-hidden", "true");
   state.activeReservation = null;
   state.modalMode = "view";
@@ -951,6 +956,7 @@ function beginReservationEdit() {
   document.getElementById("modal-income").value = context.reservation.income || "";
   syncDateBounds(modalStartInput, modalEndInput);
   modalEditForm.classList.remove("hidden");
+  modalEditForm.hidden = false;
 }
 
 function cancelReservationEdit() {
@@ -961,6 +967,7 @@ function cancelReservationEdit() {
   }
 
   modalEditForm.classList.add("hidden");
+  modalEditForm.hidden = true;
 }
 
 async function handleReservationEditSubmit(event) {

@@ -91,7 +91,7 @@
       </main>
     </div>
 
-    <div id="reservation-modal" class="modal hidden" aria-hidden="true">
+    <div id="reservation-modal" class="modal hidden" aria-hidden="true" hidden>
       <div class="modal-backdrop" data-close-modal="true"></div>
       <section
         class="modal-panel"
@@ -109,7 +109,7 @@
           <button id="edit-reservation" class="secondary-button" type="button">Editar</button>
           <button id="delete-reservation" class="danger-button" type="button">Borrar</button>
         </div>
-        <form id="modal-edit-form" class="modal-edit-form hidden">
+        <form id="modal-edit-form" class="modal-edit-form hidden" hidden>
           <label>
             Nombre
             <input id="modal-guest" name="guest" type="text" required />
