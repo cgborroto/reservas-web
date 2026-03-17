@@ -63,24 +63,12 @@ const state = {
   selectedPropertyId: "",
   currentMonth: new Date(2026, 2, 1),
   dataSourceLabel: "Datos de ejemplo",
-  auth: {
-    credential: "",
-    email: "",
-  },
   activeReservation: null,
 };
 
 const googleSheetsConfig = {
   enabled: true,
   spreadsheetId: "10wXR2SeMqURamitzJT2SDb01lELdg79Y_JRLJlWHGsA",
-  appsScriptUrl: "https://script.google.com/macros/s/AKfycbxNUlKUVubKnughly_ZolQnG7wI7-1W0frdKWpSWfPi20WdwR2W3Swgho4UabP0khM4Jg/exec",
-  mode: "privateAppsScript",
-};
-
-const securityConfig = {
-  enabled: true,
-  googleClientId: "890425856815-hhcq7r8geu8aluue9om96m6d25cmjs0j.apps.googleusercontent.com",
-  allowedEmails: ["cgborroto@gmail.com", "odasabina@gmail.com"],
   sheets: {
     properties: "propiedades",
     reservations: "reservas",
@@ -115,8 +103,8 @@ const modalContent = document.getElementById("modal-content");
 const modalTitle = document.getElementById("modal-title");
 const modalStatus = document.getElementById("modal-status");
 const modalEditForm = document.getElementById("modal-edit-form");
-const authGate = document.getElementById("auth-gate");
-const authStatus = document.getElementById("auth-status");
+const adminCard = document.getElementById("admin-card");
+const modalActions = document.getElementById("modal-actions");
 
 document.getElementById("prev-month").addEventListener("click", () => changeMonth(-1));
 document.getElementById("next-month").addEventListener("click", () => changeMonth(1));
@@ -347,32 +335,20 @@ function capitalize(value) {
 }
 
 async function initializeApp() {
-  if (securityConfig.enabled) {
-    showAuthGate();
-    initializeGoogleLogin();
-    return;
-  }
-
   await bootstrapData();
 }
 
 async function loadProperties() {
-  if (googleSheetsConfig.mode === "sample" || !googleSheetsConfig.enabled) {
+  if (!googleSheetsConfig.enabled) {
     state.dataSourceLabel = "Mostrando datos de ejemplo";
     return sampleProperties;
   }
 
-  if (googleSheetsConfig.mode === "privateAppsScript") {
-    const response = await postToAppsScript({ action: "getCalendarData" });
-    state.dataSourceLabel = `Acceso privado: ${state.auth.email || "usuario autorizado"}`;
-    return response.properties || sampleProperties;
-  }
-
   try {
     const [propertiesRows, reservationRows, cleaningRows] = await Promise.all([
-      fetchSheetRows(securityConfig.sheets.properties),
-      fetchSheetRows(securityConfig.sheets.reservations),
-      fetchSheetRows(securityConfig.sheets.cleaning),
+      fetchSheetRows(googleSheetsConfig.sheets.properties),
+      fetchSheetRows(googleSheetsConfig.sheets.reservations),
+      fetchSheetRows(googleSheetsConfig.sheets.cleaning),
     ]);
 
     const merged = buildPropertiesFromSheets(propertiesRows, reservationRows, cleaningRows);
@@ -637,17 +613,6 @@ async function handleCleaningSubmit(event) {
 }
 
 async function saveReservation(reservation) {
-  if (googleSheetsConfig.enabled && googleSheetsConfig.appsScriptUrl.startsWith("https://")) {
-    await postToAppsScript({
-      action: "addReservation",
-      payload: {
-        ...reservation,
-        id: reservation.id || createId("res"),
-      },
-    });
-    return;
-  }
-
   const property = state.properties.find((item) => item.id === reservation.propertyId);
   property.reservations.push({
     id: reservation.id || createId("res"),
@@ -660,39 +625,8 @@ async function saveReservation(reservation) {
 }
 
 async function saveCleaning(cleaning) {
-  if (googleSheetsConfig.enabled && googleSheetsConfig.appsScriptUrl.startsWith("https://")) {
-    await postToAppsScript({
-      action: "addCleaning",
-      payload: cleaning,
-    });
-    return;
-  }
-
   const property = state.properties.find((item) => item.id === cleaning.propertyId);
   property.cleaningDays.push(cleaning.date);
-}
-
-async function postToAppsScript(body) {
-  const response = await fetch(googleSheetsConfig.appsScriptUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8",
-    },
-    body: JSON.stringify({
-      ...body,
-      credential: state.auth.credential,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error("Error al guardar en Apps Script");
-  }
-
-  const data = await response.json();
-  if (!data.ok) {
-    throw new Error(data.error || "Error en Apps Script");
-  }
-  return data;
 }
 
 async function refreshData(preferredPropertyId) {
@@ -706,6 +640,11 @@ async function refreshData(preferredPropertyId) {
 }
 
 function setFormStatus(message) {
+  if (!message && isSimpleAccessMode()) {
+    formStatus.textContent = "Modo simple: el calendario se lee del Google Sheet publicado. Los cambios locales no se sincronizan.";
+    return;
+  }
+
   formStatus.textContent = message;
 }
 
@@ -739,8 +678,13 @@ function openReservationModal(property, reservation) {
   `;
   modalStatus.textContent = "";
   modalEditForm.classList.add("hidden");
-  document.getElementById("edit-reservation").classList.remove("hidden");
-  document.getElementById("delete-reservation").classList.remove("hidden");
+  if (isSimpleAccessMode()) {
+    modalActions.classList.add("hidden");
+  } else {
+    modalActions.classList.remove("hidden");
+    document.getElementById("edit-reservation").classList.remove("hidden");
+    document.getElementById("delete-reservation").classList.remove("hidden");
+  }
   reservationModal.classList.remove("hidden");
   reservationModal.setAttribute("aria-hidden", "false");
 }
@@ -836,14 +780,6 @@ async function handleReservationDelete() {
 }
 
 async function updateReservation(reservation) {
-  if (googleSheetsConfig.enabled && googleSheetsConfig.appsScriptUrl.startsWith("https://")) {
-    await postToAppsScript({
-      action: "updateReservation",
-      payload: reservation,
-    });
-    return;
-  }
-
   const current = getReservationById(reservation.propertyId, reservation.id);
   if (!current) {
     throw new Error("Reserva no encontrada");
@@ -853,14 +789,6 @@ async function updateReservation(reservation) {
 }
 
 async function deleteReservation(propertyId, reservationId) {
-  if (googleSheetsConfig.enabled && googleSheetsConfig.appsScriptUrl.startsWith("https://")) {
-    await postToAppsScript({
-      action: "deleteReservation",
-      payload: { propertyId, id: reservationId },
-    });
-    return;
-  }
-
   const property = state.properties.find((item) => item.id === propertyId);
   property.reservations = property.reservations.filter((item) => item.id !== reservationId);
 }
@@ -910,79 +838,28 @@ function formatCurrency(value) {
   }).format(Number(value || 0));
 }
 
-function showAuthGate() {
-  authGate.classList.remove("hidden");
-}
-
-function hideAuthGate() {
-  authGate.classList.add("hidden");
-}
-
-function initializeGoogleLogin() {
-  if (!securityConfig.googleClientId || securityConfig.googleClientId === "PEGA_AQUI_EL_CLIENT_ID_DE_GOOGLE") {
-    authStatus.textContent = "Falta configurar Google Login.";
-    return;
-  }
-
-  if (!window.google || !window.google.accounts) {
-    authStatus.textContent = "Cargando Google Login...";
-    window.setTimeout(initializeGoogleLogin, 400);
-    return;
-  }
-
-  window.google.accounts.id.initialize({
-    client_id: securityConfig.googleClientId,
-    callback: handleGoogleCredential,
-  });
-
-  window.google.accounts.id.renderButton(document.getElementById("google-signin-button"), {
-    theme: "outline",
-    size: "large",
-    width: 280,
-    text: "signin_with",
-    shape: "pill",
-  });
-}
-
-async function handleGoogleCredential(response) {
-  try {
-    const profile = decodeJwtPayload(response.credential);
-    if (!securityConfig.allowedEmails.includes(profile.email)) {
-      authStatus.textContent = "Este correo no esta autorizado.";
-      return;
-    }
-
-    state.auth.credential = response.credential;
-    state.auth.email = profile.email;
-
-    if (googleSheetsConfig.mode === "privateAppsScript" && googleSheetsConfig.appsScriptUrl.startsWith("https://")) {
-      await postToAppsScript({ action: "verifyLogin" });
-    }
-
-    hideAuthGate();
-    await bootstrapData();
-  } catch (error) {
-    console.error(error);
-    authStatus.textContent = "No se pudo validar el acceso con Google.";
-  }
-}
-
 async function bootstrapData() {
   const properties = await loadProperties();
   state.properties = properties;
   state.selectedPropertyId = properties[0] ? properties[0].id : "";
   renderPropertyTabs();
   renderCalendar();
+  syncSimpleModeUi();
+  setFormStatus("");
 }
 
-function decodeJwtPayload(token) {
-  const payload = token.split(".")[1];
-  const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-  const json = decodeURIComponent(
-    atob(base64)
-      .split("")
-      .map((char) => `%${(`00${char.charCodeAt(0).toString(16)}`).slice(-2)}`)
-      .join("")
-  );
-  return JSON.parse(json);
+function isSimpleAccessMode() {
+  return googleSheetsConfig.enabled;
+}
+
+function syncSimpleModeUi() {
+  if (!isSimpleAccessMode()) {
+    adminCard.classList.remove("hidden");
+    modalActions.classList.remove("hidden");
+    return;
+  }
+
+  adminCard.classList.add("hidden");
+  modalActions.classList.add("hidden");
+  modalEditForm.classList.add("hidden");
 }

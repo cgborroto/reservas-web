@@ -53,7 +53,7 @@ La siguiente mejora natural es conectar esto a un archivo editable tipo JSON, Go
 
 ## Usar Google Sheets
 
-La app ya quedó preparada para leer desde Google Sheets.
+La app actual usa un acceso simple: lee el calendario desde un Google Sheet publicado y no depende de login con Google ni de Apps Script.
 
 ### 1. Publica tu hoja
 
@@ -88,8 +88,11 @@ Cámbialo a:
 const googleSheetsConfig = {
   enabled: true,
   spreadsheetId: "TU_ID_REAL",
-  appsScriptUrl: "TU_URL_REAL_DE_APPS_SCRIPT",
-  mode: "privateAppsScript",
+  sheets: {
+    properties: "propiedades",
+    reservations: "reservas",
+    cleaning: "limpieza",
+  },
 };
 ```
 
@@ -179,45 +182,15 @@ Dentro de esta carpeta ya te dejé una plantilla en:
 8. Quién tiene acceso: `Cualquiera`
 9. Copia la URL generada y pégala en `appsScriptUrl` dentro de `app.js`
 
-## Login con Google solo para ustedes dos
+## Acceso simple
 
-La versión privada usa Google Login y una lista de correos autorizados.
+La app queda como visor compartido:
 
-### Configuración en `app.js`
+- carga datos desde Google Sheets publicado
+- no pide login
+- no guarda cambios remotos desde los formularios
 
-```js
-const securityConfig = {
-  enabled: true,
-  googleClientId: "TU_CLIENT_ID_REAL",
-  allowedEmails: ["cgborroto@gmail.com", "odasabina@gmail.com"],
-  sheets: {
-    properties: "propiedades",
-    reservations: "reservas",
-    cleaning: "limpieza",
-  },
-};
-```
-
-### Configuración en `google-apps-script/Code.gs`
-
-```js
-var ALLOWED_EMAILS = [
-  "cgborroto@gmail.com",
-  "odasabina@gmail.com"
-];
-
-var GOOGLE_CLIENT_ID = "TU_CLIENT_ID_REAL";
-```
-
-Nota: `odasabina@yahoo.com` no sirve para este flujo si usamos login de Google. Para tu esposa conviene entrar con `odasabina@gmail.com`.
-
-### Flujo
-
-1. Ustedes entran a la página
-2. Se autentican con Google
-3. La página manda el token a Apps Script
-4. Apps Script valida el token y revisa que el correo esté en la lista permitida
-5. Solo entonces entrega o modifica datos
+Si en el futuro quieres volver a edición compartida en línea, hará falta añadir otro backend.
 
 ## Despliegue recomendado
 

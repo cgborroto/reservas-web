@@ -5,21 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Control de Reservas</title>
     <link rel="stylesheet" href="./styles.css" />
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
-    <div id="auth-gate" class="auth-gate hidden">
-      <div class="auth-card">
-        <p class="eyebrow">Acceso privado</p>
-        <h2>Entrar con Google</h2>
-        <p class="intro">
-          Esta agenda puede quedar limitada a tu correo y al de tu esposa.
-        </p>
-        <div id="google-signin-button"></div>
-        <p id="auth-status" class="form-status"></p>
-      </div>
-    </div>
-
     <div class="app-shell">
       <aside class="sidebar">
         <p class="eyebrow">Panel de reservas</p>
@@ -51,7 +38,7 @@
           </div>
         </header>
 
-        <section class="admin-card">
+        <section id="admin-card" class="admin-card">
           <div class="admin-grid">
             <form id="reservation-form" class="admin-form">
               <h3>Registrar reserva</h3>
@@ -129,7 +116,7 @@
         <p class="eyebrow">Detalle de reserva</p>
         <h3 id="modal-title">Reserva</h3>
         <div id="modal-content" class="modal-content"></div>
-        <div class="modal-actions">
+        <div id="modal-actions" class="modal-actions">
           <button id="edit-reservation" class="secondary-button" type="button">Editar</button>
           <button id="delete-reservation" class="danger-button" type="button">Borrar</button>
         </div>
@@ -167,7 +154,6 @@
         <p id="modal-status" class="form-status"></p>
       </section>
     </div>
-
     <script src="./app.js"></script>
   </body>
 </html>
