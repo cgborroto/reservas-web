@@ -97,9 +97,7 @@ const propertySubtitle = document.getElementById("property-subtitle");
 const monthlyReservations = document.getElementById("monthly-reservations");
 const dataSource = document.getElementById("data-source");
 const reservationForm = document.getElementById("reservation-form");
-const cleaningForm = document.getElementById("cleaning-form");
 const reservationProperty = document.getElementById("reservation-property");
-const cleaningProperty = document.getElementById("cleaning-property");
 const formStatus = document.getElementById("form-status");
 const reservationModal = document.getElementById("reservation-modal");
 const modalContent = document.getElementById("modal-content");
@@ -108,16 +106,21 @@ const modalStatus = document.getElementById("modal-status");
 const modalEditForm = document.getElementById("modal-edit-form");
 const adminCard = document.getElementById("admin-card");
 const modalActions = document.getElementById("modal-actions");
+const reservationStartInput = reservationForm.elements.start;
+const reservationEndInput = reservationForm.elements.end;
+const modalStartInput = document.getElementById("modal-start");
+const modalEndInput = document.getElementById("modal-end");
 
 document.getElementById("prev-month").addEventListener("click", () => changeMonth(-1));
 document.getElementById("next-month").addEventListener("click", () => changeMonth(1));
 reservationForm.addEventListener("submit", handleReservationSubmit);
-cleaningForm.addEventListener("submit", handleCleaningSubmit);
 modalEditForm.addEventListener("submit", handleReservationEditSubmit);
 document.getElementById("edit-reservation").addEventListener("click", beginReservationEdit);
 document.getElementById("delete-reservation").addEventListener("click", handleReservationDelete);
 document.getElementById("cancel-edit").addEventListener("click", cancelReservationEdit);
 document.getElementById("close-modal").addEventListener("click", closeReservationModal);
+reservationStartInput.addEventListener("change", () => syncDateBounds(reservationStartInput, reservationEndInput));
+modalStartInput.addEventListener("change", () => syncDateBounds(modalStartInput, modalEndInput));
 reservationModal.addEventListener("click", (event) => {
   if (event.target.dataset.closeModal === "true") {
     closeReservationModal();
@@ -131,6 +134,7 @@ document.addEventListener("keydown", (event) => {
 
 renderWeekdays();
 renderLegend();
+applyDateInputRules();
 initializeApp();
 
 function renderWeekdays() {
@@ -209,6 +213,7 @@ function buildDayCell(day, property) {
   const inCurrentMonth = day.getMonth() === state.currentMonth.getMonth();
   const status = getDayStatus(dateKey, property);
   const reservation = getReservationForDate(dateKey, property);
+  const isPastFreeDay = !reservation && dateKey < getTodayDateKey();
 
   const cell = document.createElement("article");
   cell.className = `day-cell ${inCurrentMonth ? "" : "outside-month"} ${status.className}`;
@@ -228,7 +233,7 @@ function buildDayCell(day, property) {
     cell.classList.add("clickable-day");
     cell.setAttribute("role", "button");
     cell.setAttribute("tabindex", "0");
-    cell.setAttribute("aria-label", `Ver detalle de reserva de ${reservation.guest || "huesped"}`);
+    cell.setAttribute("aria-label", `Ver detalle de ${reservation.guest || "reserva"}`);
     cell.addEventListener("click", () => openReservationModal(property, reservation));
     cell.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
@@ -236,7 +241,7 @@ function buildDayCell(day, property) {
         openReservationModal(property, reservation);
       }
     });
-  } else {
+  } else if (!isPastFreeDay) {
     cell.classList.add("clickable-day");
     cell.setAttribute("role", "button");
     cell.setAttribute("tabindex", "0");
@@ -258,7 +263,7 @@ function getDayStatus(dateKey, property) {
   if (property.cleaningDays.includes(dateKey)) {
     return {
       label: "Limpieza",
-      details: "Servicio programado",
+      details: "Bloqueado",
       className: "cleaning",
       background: "",
     };
@@ -266,11 +271,14 @@ function getDayStatus(dateKey, property) {
 
   const reservation = property.reservations.find((item) => isDateInRange(dateKey, item.start, item.end));
   if (reservation) {
+    const reservationChannel = channels[reservation.channel] ? reservation.channel : "Directo";
     return {
       label: reservation.channel,
-      details: reservation.guest ? reservation.guest : "Reservado",
+      details: reservation.channel === "Limpieza"
+        ? (reservation.guest || "Bloqueado")
+        : (reservation.guest || "Reservado"),
       className: "booked",
-      background: channels[reservation.channel].color,
+      background: channels[reservationChannel].color,
     };
   }
 
@@ -313,9 +321,9 @@ function renderMonthlyReservations(property) {
       const item = document.createElement("article");
       item.className = "reservation-item";
       item.innerHTML = `
-        <strong>${reservation.channel} - ${reservation.guest || "Sin nombre"}</strong>
+        <strong>${reservation.channel} - ${reservation.guest || "Sin detalle"}</strong>
         <span>${formatDate(reservation.start)} a ${formatDate(reservation.end)}</span>
-        <span>${formatCurrency(reservation.income)}</span>
+        <span>${reservation.channel === "Limpieza" ? "Sin ingreso" : formatCurrency(reservation.income)}</span>
       `;
       monthlyReservations.appendChild(item);
     });
@@ -456,6 +464,14 @@ function buildPropertiesFromSheets(propertyRows, reservationRows, cleaningRows) 
 
     ensureProperty(propertyMap, propertyId);
     propertyMap.get(propertyId).cleaningDays.push(cleaningDate);
+    propertyMap.get(propertyId).reservations.push({
+      id: row.id || `clean-${propertyId}-${cleaningDate}`,
+      start: cleaningDate,
+      end: normalizeDate(row.end || row.fecha_fin || row.hasta || row.end_date) || cleaningDate,
+      channel: "Limpieza",
+      guest: row.note || row.notes || row.nota || row.detalle || "Limpieza",
+      income: "0",
+    });
   });
 
   return Array.from(propertyMap.values());
@@ -493,6 +509,7 @@ function normalizeChannel(channel) {
   if (normalized === "bokking") return "Booking";
   if (normalized === "vrbo") return "Vrbo";
   if (normalized === "directo") return "Directo";
+  if (normalized === "limpieza") return "Limpieza";
   return String(channel).trim();
 }
 
@@ -620,12 +637,48 @@ function renderPropertySelects() {
     .join("");
 
   reservationProperty.innerHTML = options;
-  cleaningProperty.innerHTML = options;
 
   if (state.selectedPropertyId) {
     reservationProperty.value = state.selectedPropertyId;
-    cleaningProperty.value = state.selectedPropertyId;
   }
+}
+
+function getTodayDateKey() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function applyDateInputRules() {
+  const today = getTodayDateKey();
+  reservationStartInput.min = today;
+  reservationEndInput.min = today;
+  modalStartInput.min = today;
+  modalEndInput.min = today;
+}
+
+function syncDateBounds(startInput, endInput) {
+  const minDate = startInput.value || getTodayDateKey();
+  endInput.min = minDate;
+  if (endInput.value && endInput.value < minDate) {
+    endInput.value = minDate;
+  }
+}
+
+function getReservationDateError(reservation) {
+  const today = getTodayDateKey();
+
+  if (reservation.start < today) {
+    return "La fecha de entrada no puede ser anterior a hoy.";
+  }
+
+  if (reservation.end < reservation.start) {
+    return "La fecha de salida no puede ser menor que la fecha de entrada.";
+  }
+
+  return "";
 }
 
 async function handleReservationSubmit(event) {
@@ -640,13 +693,23 @@ async function handleReservationSubmit(event) {
     income: normalizeMoney(form.get("income")),
   };
 
-  if (!reservation.propertyId || !reservation.guest || !reservation.channel || !reservation.start || !reservation.end || !reservation.income) {
+  if (!reservation.propertyId || !reservation.guest || !reservation.channel || !reservation.start || !reservation.end) {
     setFormStatus("Completa todos los campos de la reserva.");
     return;
   }
 
-  if (reservation.end < reservation.start) {
-    setFormStatus("La fecha de salida no puede ser menor que la fecha de entrada.");
+  if (reservation.channel === "Limpieza" && !reservation.income) {
+    reservation.income = "0";
+  }
+
+  if (!reservation.income) {
+    setFormStatus("Completa todos los campos de la reserva.");
+    return;
+  }
+
+  const dateError = getReservationDateError(reservation);
+  if (dateError) {
+    setFormStatus(dateError);
     return;
   }
 
@@ -664,31 +727,6 @@ async function handleReservationSubmit(event) {
   } catch (error) {
     console.error(error);
     setFormStatus("No se pudo guardar la reserva.");
-  }
-}
-
-async function handleCleaningSubmit(event) {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
-  const cleaning = {
-    propertyId: form.get("propertyId"),
-    date: form.get("date"),
-  };
-
-  if (!cleaning.propertyId || !cleaning.date) {
-    setFormStatus("Completa los datos de limpieza.");
-    return;
-  }
-
-  try {
-    await saveCleaning(cleaning);
-    event.currentTarget.reset();
-    cleaningProperty.value = state.selectedPropertyId;
-    setFormStatus("Limpieza guardada correctamente.");
-    await refreshData(cleaning.propertyId);
-  } catch (error) {
-    console.error(error);
-    setFormStatus("No se pudo guardar la limpieza.");
   }
 }
 
@@ -712,19 +750,6 @@ async function saveReservation(reservation) {
   });
 }
 
-async function saveCleaning(cleaning) {
-  if (isWriteBackendEnabled()) {
-    await postToWriteBackend({
-      action: "addCleaning",
-      payload: buildWriteCleaningPayload(cleaning),
-    });
-    return;
-  }
-
-  const property = state.properties.find((item) => item.id === cleaning.propertyId);
-  property.cleaningDays.push(cleaning.date);
-}
-
 function isWriteBackendEnabled() {
   return googleSheetsConfig.writeAppsScriptUrl && googleSheetsConfig.writeAppsScriptUrl.startsWith("https://");
 }
@@ -744,14 +769,6 @@ function buildWriteReservationPayload(reservation) {
     channel: reservation.channel,
     guest: reservation.guest,
     income: reservation.income,
-  };
-}
-
-function buildWriteCleaningPayload(cleaning) {
-  return {
-    propertyId: cleaning.propertyId,
-    propertyName: getPropertyName(cleaning.propertyId),
-    date: cleaning.date,
   };
 }
 
@@ -815,7 +832,7 @@ function openReservationModal(property, reservation) {
       <strong>${reservation.guest || "Sin nombre"}</strong>
     </div>
     <div class="modal-row">
-      <span class="modal-label">Tipo de huesped</span>
+      <span class="modal-label">Tipo</span>
       <span>${reservation.channel}</span>
     </div>
     <div class="modal-row">
@@ -828,7 +845,7 @@ function openReservationModal(property, reservation) {
     </div>
     <div class="modal-row">
       <span class="modal-label">Ingreso</span>
-      <span>${formatCurrency(reservation.income)}</span>
+      <span>${reservation.channel === "Limpieza" ? "Sin ingreso" : formatCurrency(reservation.income)}</span>
     </div>
   `;
   modalStatus.textContent = "";
@@ -851,7 +868,7 @@ function openCreateReservationModal(property, dateKey) {
     draftDate: dateKey,
   };
   state.modalMode = "create";
-  modalTitle.textContent = `${property.name} · Nueva reserva`;
+  modalTitle.textContent = `${property.name} · Nueva reserva o bloqueo`;
   modalContent.innerHTML = `
     <div class="modal-row">
       <span class="modal-label">Estado</span>
@@ -864,9 +881,10 @@ function openCreateReservationModal(property, dateKey) {
   `;
   document.getElementById("modal-guest").value = "";
   document.getElementById("modal-channel").value = "Airbnb";
-  document.getElementById("modal-start").value = dateKey;
-  document.getElementById("modal-end").value = dateKey;
+  modalStartInput.value = dateKey;
+  modalEndInput.value = dateKey;
   document.getElementById("modal-income").value = "";
+  syncDateBounds(modalStartInput, modalEndInput);
   modalActions.classList.add("hidden");
   modalEditForm.classList.remove("hidden");
   modalStatus.textContent = isWriteBackendEnabled()
@@ -897,9 +915,10 @@ function beginReservationEdit() {
 
   document.getElementById("modal-guest").value = context.reservation.guest || "";
   document.getElementById("modal-channel").value = context.reservation.channel;
-  document.getElementById("modal-start").value = context.reservation.start;
-  document.getElementById("modal-end").value = context.reservation.end;
+  modalStartInput.value = context.reservation.start;
+  modalEndInput.value = context.reservation.end;
   document.getElementById("modal-income").value = context.reservation.income || "";
+  syncDateBounds(modalStartInput, modalEndInput);
   modalEditForm.classList.remove("hidden");
 }
 
@@ -935,13 +954,23 @@ async function handleReservationEditSubmit(event) {
     income: normalizeMoney(document.getElementById("modal-income").value),
   };
 
-  if (!updatedReservation.guest || !updatedReservation.start || !updatedReservation.end || !updatedReservation.income) {
+  if (!updatedReservation.guest || !updatedReservation.start || !updatedReservation.end) {
     modalStatus.textContent = "Completa todos los campos.";
     return;
   }
 
-  if (updatedReservation.end < updatedReservation.start) {
-    modalStatus.textContent = "La fecha de salida no puede ser menor que la entrada.";
+  if (updatedReservation.channel === "Limpieza" && !updatedReservation.income) {
+    updatedReservation.income = "0";
+  }
+
+  if (!updatedReservation.income) {
+    modalStatus.textContent = "Completa todos los campos.";
+    return;
+  }
+
+  const dateError = getReservationDateError(updatedReservation);
+  if (dateError) {
+    modalStatus.textContent = dateError;
     return;
   }
 
@@ -979,13 +1008,23 @@ async function handleCreateReservationFromModal(event) {
     income: normalizeMoney(document.getElementById("modal-income").value),
   };
 
-  if (!reservation.guest || !reservation.start || !reservation.end || !reservation.income) {
+  if (!reservation.guest || !reservation.start || !reservation.end) {
     modalStatus.textContent = "Completa todos los campos.";
     return;
   }
 
-  if (reservation.end < reservation.start) {
-    modalStatus.textContent = "La fecha de salida no puede ser menor que la entrada.";
+  if (reservation.channel === "Limpieza" && !reservation.income) {
+    reservation.income = "0";
+  }
+
+  if (!reservation.income) {
+    modalStatus.textContent = "Completa todos los campos.";
+    return;
+  }
+
+  const dateError = getReservationDateError(reservation);
+  if (dateError) {
+    modalStatus.textContent = dateError;
     return;
   }
 
