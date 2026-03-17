@@ -71,15 +71,15 @@ const state = {
 };
 
 const googleSheetsConfig = {
-  enabled: false,
-  spreadsheetId: "PEGA_AQUI_EL_ID_DE_TU_GOOGLE_SHEET",
-  appsScriptUrl: "PEGA_AQUI_LA_URL_DEL_WEB_APP_DE_APPS_SCRIPT",
-  mode: "sample",
+  enabled: true,
+  spreadsheetId: "10wXR2SeMqURamitzJT2SDb01lELdg79Y_JRLJlWHGsA",
+  appsScriptUrl: "https://script.google.com/macros/s/AKfycbxNUlKUVubKnughly_ZolQnG7wI7-1W0frdKWpSWfPi20WdwR2W3Swgho4UabP0khM4Jg/exec",
+  mode: "privateAppsScript",
 };
 
 const securityConfig = {
-  enabled: false,
-  googleClientId: "PEGA_AQUI_EL_CLIENT_ID_DE_GOOGLE",
+  enabled: true,
+  googleClientId: "890425856815-hhcq7r8geu8aluue9om96m6d25cmjs0j.apps.googleusercontent.com",
   allowedEmails: ["cgborroto@gmail.com", "odasabina@gmail.com"],
   sheets: {
     properties: "propiedades",
