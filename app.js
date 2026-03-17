@@ -65,7 +65,6 @@ const state = {
   dataSourceLabel: "Datos de ejemplo",
   activeReservation: null,
   modalMode: "view",
-  backgroundRefreshTimer: null,
 };
 
 const googleSheetsConfig = {
@@ -817,22 +816,6 @@ function updateUiAfterLocalMutation(preferredPropertyId) {
   state.selectedPropertyId = preferredPropertyId || state.selectedPropertyId;
   renderPropertyTabs();
   renderCalendar();
-  scheduleBackgroundRefresh(preferredPropertyId);
-}
-
-function scheduleBackgroundRefresh(preferredPropertyId) {
-  if (!googleSheetsConfig.enabled) {
-    return;
-  }
-
-  window.clearTimeout(state.backgroundRefreshTimer);
-  state.backgroundRefreshTimer = window.setTimeout(async () => {
-    try {
-      await refreshData(preferredPropertyId);
-    } catch (error) {
-      console.error("No fue posible refrescar en segundo plano:", error);
-    }
-  }, 4000);
 }
 
 function setFormStatus(message) {
