@@ -42,6 +42,12 @@ export default {
         return jsonResponse({ ok: true }, 200, env, request);
       }
 
+      if (body.action === "deleteCleaning") {
+        validateDeleteCleaningPayload(body.payload);
+        await deleteCleaning(service, body.payload);
+        return jsonResponse({ ok: true }, 200, env, request);
+      }
+
       return jsonResponse({ ok: false, error: "Accion no soportada" }, 400, env, request);
     } catch (error) {
       const status = Number.isInteger(error?.status) ? error.status : 500;
@@ -135,6 +141,20 @@ function validateCleaningPayload(payload) {
 function validateDeletePayload(payload) {
   if (!payload || typeof payload !== "object" || !String(payload.id || "").trim()) {
     throwHttpError(400, "Falta id.");
+  }
+}
+
+function validateDeleteCleaningPayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    throwHttpError(400, "Payload de limpieza invalido.");
+  }
+
+  if (!String(payload.propertyId || "").trim()) {
+    throwHttpError(400, "Falta propertyId.");
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(payload.date || ""))) {
+    throwHttpError(400, "Fecha de limpieza invalida.");
   }
 }
 
@@ -234,6 +254,33 @@ async function deleteReservation(service, reservationId) {
   );
 }
 
+async function deleteCleaning(service, payload) {
+  const { rowNumber } = await findCleaningRow(service, payload);
+  const sheetId = await getSheetIdByTitle(service, service.cleaningSheet);
+
+  await googleApiFetch(
+    `${GOOGLE_SHEETS_BASE_URL}/${service.spreadsheetId}:batchUpdate`,
+    service.accessToken,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId,
+                dimension: "ROWS",
+                startIndex: rowNumber - 1,
+                endIndex: rowNumber,
+              },
+            },
+          },
+        ],
+      }),
+    }
+  );
+}
+
 async function findReservationRow(service, reservationId) {
   const data = await googleApiFetch(
     `${GOOGLE_SHEETS_BASE_URL}/${service.spreadsheetId}/values/${encodeURIComponent(service.reservationsSheet)}!A:H`,
@@ -248,6 +295,90 @@ async function findReservationRow(service, reservationId) {
   }
 
   throw new Error("Reserva no encontrada");
+}
+
+async function findCleaningRow(service, payload) {
+  const data = await googleApiFetch(
+    `${GOOGLE_SHEETS_BASE_URL}/${service.spreadsheetId}/values/${encodeURIComponent(service.cleaningSheet)}!A:Z`,
+    service.accessToken
+  );
+
+  const values = data.values || [];
+  if (values.length < 2) {
+    throw new Error("Limpieza no encontrada");
+  }
+
+  const headers = values[0].map((header) => normalizeHeader(header));
+  const propertyIdIndex = findHeaderIndex(headers, ["property_id", "propiedad_id", "property"]);
+  const propertyNameIndex = findHeaderIndex(headers, ["propiedad", "name", "nombre"]);
+  const dateIndex = findHeaderIndex(headers, ["date", "fecha"]);
+
+  for (let index = 1; index < values.length; index += 1) {
+    const row = values[index];
+    const rowPropertyId = normalizeId(
+      propertyIdIndex >= 0 ? row[propertyIdIndex] : row[1] || row[0]
+    );
+    const rowPropertyName = normalizeId(
+      propertyNameIndex >= 0 ? row[propertyNameIndex] : row[0]
+    );
+    const rowDate = normalizeSheetDate(dateIndex >= 0 ? row[dateIndex] : row[2] || row[1]);
+
+    if (
+      rowDate === payload.date &&
+      (rowPropertyId === normalizeId(payload.propertyId) || rowPropertyName === normalizeId(payload.propertyId))
+    ) {
+      return { rowNumber: index + 1 };
+    }
+  }
+
+  throw new Error("Limpieza no encontrada");
+}
+
+function findHeaderIndex(headers, options) {
+  return headers.findIndex((header) => options.includes(header));
+}
+
+function normalizeHeader(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function normalizeId(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeSheetDate(value) {
+  const text = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return text;
+  }
+
+  if (/^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/.test(text)) {
+    const separator = text.includes("/") ? "/" : "-";
+    const [first, second, year] = text.split(separator).map((part) => Number(part));
+    let month = first;
+    let day = second;
+
+    if (first > 12 && second <= 12) {
+      day = first;
+      month = second;
+    }
+
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+
+  return text;
 }
 
 async function getSheetIdByTitle(service, title) {

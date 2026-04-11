@@ -1096,7 +1096,7 @@ async function handleReservationDelete() {
   }
 
   try {
-    await deleteReservation(context.property.id, context.reservation.id);
+    await deleteReservation(context.property.id, context.reservation);
     closeReservationModal();
     updateUiAfterLocalMutation(context.property.id);
     modalStatus.textContent = "";
@@ -1107,6 +1107,30 @@ async function handleReservationDelete() {
 }
 
 async function updateReservation(reservation) {
+  const current = getReservationById(reservation.propertyId, reservation.id);
+  if (!current) {
+    throw new Error("Reserva no encontrada");
+  }
+
+  if (isCleaningSheetReservation(current)) {
+    if (isWriteBackendEnabled()) {
+      await postToWriteBackend({
+        action: "deleteCleaning",
+        payload: {
+          propertyId: reservation.propertyId,
+          date: current.start,
+        },
+      });
+      await postToWriteBackend({
+        action: "addReservation",
+        payload: buildWriteReservationPayload(reservation),
+      });
+    }
+
+    Object.assign(current, reservation);
+    return;
+  }
+
   if (isWriteBackendEnabled()) {
     await postToWriteBackend({
       action: "updateReservation",
@@ -1114,24 +1138,36 @@ async function updateReservation(reservation) {
     });
   }
 
-  const current = getReservationById(reservation.propertyId, reservation.id);
-  if (!current) {
-    throw new Error("Reserva no encontrada");
-  }
-
   Object.assign(current, reservation);
 }
 
-async function deleteReservation(propertyId, reservationId) {
+async function deleteReservation(propertyId, reservation) {
   if (isWriteBackendEnabled()) {
-    await postToWriteBackend({
-      action: "deleteReservation",
-      payload: { propertyId, id: reservationId },
-    });
+    if (isCleaningSheetReservation(reservation)) {
+      await postToWriteBackend({
+        action: "deleteCleaning",
+        payload: {
+          propertyId,
+          date: reservation.start,
+        },
+      });
+    } else {
+      await postToWriteBackend({
+        action: "deleteReservation",
+        payload: { propertyId, id: reservation.id },
+      });
+    }
   }
 
   const property = state.properties.find((item) => item.id === propertyId);
-  property.reservations = property.reservations.filter((item) => item.id !== reservationId);
+  property.reservations = property.reservations.filter((item) => item.id !== reservation.id);
+  if (isCleaningSheetReservation(reservation)) {
+    property.cleaningDays = property.cleaningDays.filter((date) => date !== reservation.start);
+  }
+}
+
+function isCleaningSheetReservation(reservation) {
+  return reservation.channel === "Limpieza" && String(reservation.id || "").startsWith("clean-");
 }
 
 function getActiveReservationContext() {
