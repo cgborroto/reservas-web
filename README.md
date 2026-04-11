@@ -192,6 +192,14 @@ La app queda como visor compartido:
 
 Si en el futuro quieres volver a edición compartida en línea, hará falta añadir otro backend.
 
+## Siguiente paso real
+
+La UI del calendario ya sirve para capturar reservas desde un día libre, pero la escritura remota por Apps Script quedó bloqueada.
+
+La pieza pendiente ya no es el calendario sino la pasarela de escritura. Hay una propuesta concreta en:
+
+- `WRITE_BACKEND_PLAN.md`
+
 ## Despliegue recomendado
 
 Para iPhone y PC, hospeda la carpeta `reservas-web` en un sitio con HTTPS:

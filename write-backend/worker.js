@@ -4,43 +4,53 @@ const GOOGLE_SHEETS_BASE_URL = "https://sheets.googleapis.com/v4/spreadsheets";
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: buildCorsHeaders(env) });
+      return new Response(null, { status: 204, headers: buildCorsHeaders(env, request) });
     }
 
     if (request.method !== "POST") {
-      return jsonResponse({ ok: false, error: "Method not allowed" }, 405, env);
+      return jsonResponse({ ok: false, error: "Method not allowed" }, 405, env, request);
     }
 
     try {
+      validateOrigin(request, env);
       const body = await request.json();
+      validateRequestBody(body);
       const accessToken = await getGoogleAccessToken(env);
       const service = createSheetsService(env, accessToken);
 
       if (body.action === "addReservation") {
         validateReservationDates(body.payload, env);
         await appendReservation(service, body.payload);
-        return jsonResponse({ ok: true }, 200, env);
+        return jsonResponse({ ok: true }, 200, env, request);
       }
 
       if (body.action === "addCleaning") {
+        validateCleaningPayload(body.payload);
         await appendCleaning(service, body.payload);
-        return jsonResponse({ ok: true }, 200, env);
+        return jsonResponse({ ok: true }, 200, env, request);
       }
 
       if (body.action === "updateReservation") {
-        validateReservationDates(body.payload, env);
+        validateReservationDateRange(body.payload);
         await updateReservation(service, body.payload);
-        return jsonResponse({ ok: true }, 200, env);
+        return jsonResponse({ ok: true }, 200, env, request);
       }
 
       if (body.action === "deleteReservation") {
+        validateDeletePayload(body.payload);
         await deleteReservation(service, body.payload.id);
-        return jsonResponse({ ok: true }, 200, env);
+        return jsonResponse({ ok: true }, 200, env, request);
       }
 
-      return jsonResponse({ ok: false, error: "Accion no soportada" }, 400, env);
+      return jsonResponse({ ok: false, error: "Accion no soportada" }, 400, env, request);
     } catch (error) {
-      return jsonResponse({ ok: false, error: String(error && error.message ? error.message : error) }, 500, env);
+      const status = Number.isInteger(error?.status) ? error.status : 500;
+      return jsonResponse(
+        { ok: false, error: String(error && error.message ? error.message : error) },
+        status,
+        env,
+        request
+      );
     }
   },
 };
@@ -55,20 +65,76 @@ function createSheetsService(env, accessToken) {
 }
 
 function validateReservationDates(payload, env) {
+  validateReservationPayload(payload);
+
+  validateReservationDateRange(payload);
+
+  const start = String(payload?.start || "");
+  const today = getTodayDateKey(env);
+
+  if (start < today) {
+    throw new Error("La fecha de entrada no puede ser anterior a hoy.");
+  }
+}
+
+function validateReservationDateRange(payload) {
+  validateReservationPayload(payload);
+
   const start = String(payload?.start || "");
   const end = String(payload?.end || "");
-  const today = getTodayDateKey(env);
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
     throw new Error("Fechas invalidas.");
   }
 
-  if (start < today) {
-    throw new Error("La fecha de entrada no puede ser anterior a hoy.");
-  }
-
   if (end < start) {
     throw new Error("La fecha de salida no puede ser menor que la fecha de entrada.");
+  }
+}
+
+function validateRequestBody(body) {
+  if (!body || typeof body !== "object") {
+    throwHttpError(400, "Payload invalido.");
+  }
+
+  if (!body.action || typeof body.action !== "string") {
+    throwHttpError(400, "Falta action.");
+  }
+}
+
+function validateReservationPayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    throwHttpError(400, "Payload de reserva invalido.");
+  }
+
+  const requiredFields = ["id", "propertyId", "propertyName", "start", "end", "channel", "guest"];
+  for (const field of requiredFields) {
+    if (!String(payload[field] || "").trim()) {
+      throwHttpError(400, `Falta ${field}.`);
+    }
+  }
+}
+
+function validateCleaningPayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    throwHttpError(400, "Payload de limpieza invalido.");
+  }
+
+  const requiredFields = ["propertyId", "propertyName", "date"];
+  for (const field of requiredFields) {
+    if (!String(payload[field] || "").trim()) {
+      throwHttpError(400, `Falta ${field}.`);
+    }
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(payload.date))) {
+    throwHttpError(400, "Fecha de limpieza invalida.");
+  }
+}
+
+function validateDeletePayload(payload) {
+  if (!payload || typeof payload !== "object" || !String(payload.id || "").trim()) {
+    throwHttpError(400, "Falta id.");
   }
 }
 
@@ -272,22 +338,44 @@ async function googleApiFetch(url, accessToken, init = {}) {
   return data;
 }
 
-function buildCorsHeaders(env) {
+function validateOrigin(request, env) {
+  const allowedOrigin = String(env.ALLOWED_ORIGIN || "*").trim();
+  if (!allowedOrigin || allowedOrigin === "*") {
+    return;
+  }
+
+  const requestOrigin = request.headers.get("Origin");
+  if (requestOrigin !== allowedOrigin) {
+    throwHttpError(403, "Origen no permitido.");
+  }
+}
+
+function buildCorsHeaders(env, request) {
+  const allowedOrigin = String(env.ALLOWED_ORIGIN || "*").trim();
+  const requestOrigin = request?.headers?.get("Origin");
+
   return {
-    "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN || "*",
+    "Access-Control-Allow-Origin":
+      allowedOrigin === "*" ? "*" : requestOrigin === allowedOrigin ? allowedOrigin : "null",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
 }
 
-function jsonResponse(payload, status, env) {
+function jsonResponse(payload, status, env, request) {
   return new Response(JSON.stringify(payload), {
     status,
     headers: {
       "Content-Type": "application/json",
-      ...buildCorsHeaders(env),
+      ...buildCorsHeaders(env, request),
     },
   });
+}
+
+function throwHttpError(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  throw error;
 }
 
 function pemToArrayBuffer(pem) {

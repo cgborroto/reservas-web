@@ -1,0 +1,8 @@
+name = "reservas-write-backend"
+main = "worker.js"
+compatibility_date = "2026-03-17"
+
+[vars]
+ALLOWED_ORIGIN = "https://cgborroto.github.io"
+RESERVATIONS_SHEET_NAME = "Reservas"
+CLEANING_SHEET_NAME = "Limpieza"

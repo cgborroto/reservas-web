@@ -61,7 +61,7 @@ const sampleProperties = [
 const state = {
   properties: [],
   selectedPropertyId: "",
-  currentMonth: new Date(2026, 2, 1),
+  currentMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   dataSourceLabel: "Datos de ejemplo",
   activeReservation: null,
   modalMode: "view",
@@ -670,10 +670,10 @@ function syncDateBounds(startInput, endInput) {
   }
 }
 
-function getReservationDateError(reservation) {
+function getReservationDateError(reservation, options = {}) {
   const today = getTodayDateKey();
 
-  if (reservation.start < today) {
+  if (!options.allowPastStart && reservation.start < today) {
     return "La fecha de entrada no puede ser anterior a hoy.";
   }
 
@@ -1006,7 +1006,7 @@ async function handleReservationEditSubmit(event) {
     return;
   }
 
-  const dateError = getReservationDateError(updatedReservation);
+  const dateError = getReservationDateError(updatedReservation, { allowPastStart: true });
   if (dateError) {
     modalStatus.textContent = dateError;
     return;
