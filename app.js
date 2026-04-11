@@ -79,6 +79,11 @@ const googleSheetsConfig = {
   },
 };
 
+const accessConfig = {
+  password: "reservas2026",
+  storageKey: "reservas-web-access-ok",
+};
+
 const weekdays = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
 const monthFormatter = new Intl.DateTimeFormat("es-MX", { month: "long", year: "numeric" });
 const fullDateFormatter = new Intl.DateTimeFormat("es-MX", {
@@ -107,6 +112,11 @@ const modalEditForm = document.getElementById("modal-edit-form");
 const adminCard = document.getElementById("admin-card");
 const modalActions = document.getElementById("modal-actions");
 const refreshCalendarButton = document.getElementById("refresh-calendar");
+const appShell = document.getElementById("app-shell");
+const passwordGate = document.getElementById("password-gate");
+const passwordForm = document.getElementById("password-form");
+const passwordInput = document.getElementById("password-input");
+const passwordError = document.getElementById("password-error");
 const reservationStartInput = reservationForm.elements.start;
 const reservationEndInput = reservationForm.elements.end;
 const modalStartInput = document.getElementById("modal-start");
@@ -115,6 +125,7 @@ const modalEndInput = document.getElementById("modal-end");
 document.getElementById("prev-month").addEventListener("click", () => changeMonth(-1));
 document.getElementById("next-month").addEventListener("click", () => changeMonth(1));
 refreshCalendarButton.addEventListener("click", handleManualRefresh);
+passwordForm.addEventListener("submit", handlePasswordSubmit);
 reservationForm.addEventListener("submit", handleReservationSubmit);
 modalEditForm.addEventListener("submit", handleReservationEditSubmit);
 document.getElementById("edit-reservation").addEventListener("click", beginReservationEdit);
@@ -134,10 +145,45 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-renderWeekdays();
-renderLegend();
-applyDateInputRules();
-initializeApp();
+initializeAccess();
+
+function initializeAccess() {
+  if (window.localStorage.getItem(accessConfig.storageKey) === "true") {
+    unlockApp();
+    return;
+  }
+
+  passwordGate.classList.remove("hidden");
+  passwordGate.hidden = false;
+  appShell.classList.add("hidden");
+  appShell.hidden = true;
+  passwordInput.focus();
+}
+
+function handlePasswordSubmit(event) {
+  event.preventDefault();
+
+  if (passwordInput.value === accessConfig.password) {
+    window.localStorage.setItem(accessConfig.storageKey, "true");
+    unlockApp();
+    return;
+  }
+
+  passwordError.textContent = "Contraseña incorrecta.";
+  passwordInput.select();
+}
+
+function unlockApp() {
+  passwordGate.classList.add("hidden");
+  passwordGate.hidden = true;
+  appShell.classList.remove("hidden");
+  appShell.hidden = false;
+
+  renderWeekdays();
+  renderLegend();
+  applyDateInputRules();
+  initializeApp();
+}
 
 function renderWeekdays() {
   weekdaysContainer.innerHTML = "";

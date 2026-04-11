@@ -139,6 +139,19 @@ Las opciones más simples son:
 
 Si lo publicas, ella podrá abrir la misma liga desde iPhone o desde PC y ver siempre la versión actualizada.
 
+## Contraseña simple
+
+La página tiene una protección básica en el navegador. La contraseña actual está en `app.js`:
+
+```js
+const accessConfig = {
+  password: "reservas2026",
+  storageKey: "reservas-web-access-ok",
+};
+```
+
+Esto evita accesos casuales, pero no reemplaza seguridad real de servidor.
+
 ## Captura manual de reservas
 
 La página ya incluye dos formularios:
